@@ -2,6 +2,9 @@
 py2app 构建配置
 用法: python setup.py py2app
 """
+import sys
+sys.setrecursionlimit(10000)
+
 from setuptools import setup
 
 APP = ["main.py"]
@@ -18,15 +21,14 @@ OPTIONS = {
         "LSMinimumSystemVersion": "14.0",
         "NSMicrophoneUsageDescription": "My Whisper 需要访问麦克风来录制语音并转写为文字。",
         "NSHighResolutionCapable": True,
+        "LSUIElement": True,
     },
     "packages": [
         "mlx_whisper",
-        "mlx",
+        "_sounddevice_data",
         "numpy",
         "sounddevice",
         "huggingface_hub",
-        "safetensors",
-        "tokenizers",
         "tqdm",
         "regex",
         "requests",
@@ -43,14 +45,16 @@ OPTIONS = {
         "objc",
         "AppKit",
         "Foundation",
+        "WebKit",
         "PyObjCTools",
         "PyObjCTools.AppHelper",
-        "_sounddevice_data",
     ],
     "frameworks": [],
-    "resources": [],
-    "strip": True,
-    "optimize": 2,
+    "resources": ["ui.html"],
+    "excludes": [
+        "PyInstaller", "mlx", "mlx.core", "mlx.nn", "mlx.optimizers",
+        "torch", "torchgen", "sympy",
+    ],
 }
 
 setup(

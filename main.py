@@ -58,6 +58,7 @@ except Exception as e:
 
 from AppKit import (
     NSApplication,
+    NSApplicationActivationPolicyAccessory,
     NSMenu,
     NSMenuItem,
     NSWindow,
@@ -73,7 +74,6 @@ from AppKit import (
     NSSound,
     NSStatusBar,
     NSVariableStatusItemLength,
-    NSImage,
 )
 from Foundation import NSObject, NSLog, NSURL
 from PyObjCTools import AppHelper
@@ -134,6 +134,23 @@ def _get_resource_path(filename):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
 
+def _get_bundled_model_path(model_repo):
+    """如果 bundle 内嵌了模型，返回本地路径；否则返回原始 repo 名"""
+    model_name = model_repo.split("/")[-1]
+    candidates = []
+    # py2app 设置的 RESOURCEPATH 环境变量
+    res = os.environ.get("RESOURCEPATH")
+    if res:
+        candidates.append(os.path.join(res, "models", model_name))
+    candidates.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", model_name))
+    for bundled in candidates:
+        if os.path.isdir(bundled) and os.path.exists(os.path.join(bundled, "config.json")):
+            log.info("使用内嵌模型: %s", bundled)
+            return bundled
+    log.info("未找到内嵌模型 %s，候选路径: %s", model_name, candidates)
+    return model_repo
+
+
 # ─── WKScriptMessageHandler ──────────────────────────────────────────────────
 
 class _BridgeHandler(NSObject):
@@ -180,7 +197,6 @@ class AppDelegate(NSObject):
 
         # 启动时显示窗口
         self.window.makeKeyAndOrderFront_(None)
-        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
 
         self._load_model()
         log.info("初始化完成")
@@ -344,16 +360,14 @@ class AppDelegate(NSObject):
     # ── 菜单栏图标 ─────────────────────────────────────────────────────────
 
     def _setup_status_bar(self):
-        self._status_item = NSStatusBar.systemStatusBar().statusItemWithLength_(
-            NSVariableStatusItemLength
-        )
+        sb = NSStatusBar.systemStatusBar()
+        log.info("statusBar: %s", sb)
+        self._status_item = sb.statusItemWithLength_(NSVariableStatusItemLength)
+        log.info("status_item: %s", self._status_item)
         btn = self._status_item.button()
-        img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("mic", None)
-        if img:
-            img.setTemplate_(True)
-            btn.setImage_(img)
-        else:
-            btn.setTitle_("🎙")
+        log.info("status_item.button: %s", btn)
+        btn.setTitle_("🎙")
+        log.info("button title set, visible: %s", btn.isHidden())
 
         menu = NSMenu.alloc().init()
         self._record_menu_item = menu.addItemWithTitle_action_keyEquivalent_(
@@ -364,17 +378,18 @@ class AppDelegate(NSObject):
         menu.addItem_(NSMenuItem.separatorItem())
         menu.addItemWithTitle_action_keyEquivalent_("退出", "quitApp:", "")
         self._status_item.setMenu_(menu)
+        log.info("activationPolicy: %s", NSApplication.sharedApplication().activationPolicy())
+        log.info("status_item.isVisible: %s", self._status_item.isVisible())
 
     def _update_status_bar(self):
         if not hasattr(self, '_status_item'):
             return
-        symbol = "mic.fill" if self.is_recording else "mic"
-        title = "停止转录" if self.is_recording else "开始转录"
-        self._record_menu_item.setTitle_(title)
-        img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(symbol, None)
-        if img:
-            img.setTemplate_(True)
-            self._status_item.button().setImage_(img)
+        self._record_menu_item.setTitle_(
+            "停止转录" if self.is_recording else "开始转录"
+        )
+        self._status_item.button().setTitle_(
+            "🔴" if self.is_recording else "🎙"
+        )
 
     @objc.IBAction
     def showMainWindow_(self, sender):
@@ -388,7 +403,7 @@ class AppDelegate(NSObject):
             try:
                 log.info("开始加载模型: %s", self.model)
                 dummy = np.zeros(SAMPLE_RATE, dtype=np.float32)
-                mlx_whisper.transcribe(dummy, path_or_hf_repo=self.model, fp16=True)
+                mlx_whisper.transcribe(dummy, path_or_hf_repo=_get_bundled_model_path(self.model), fp16=True)
                 self.model_loaded = True
                 self.performSelectorOnMainThread_withObject_waitUntilDone_(
                     "onModelLoaded:", None, False
@@ -548,7 +563,7 @@ class AppDelegate(NSObject):
         try:
             result = mlx_whisper.transcribe(
                 audio,
-                path_or_hf_repo=self.model,
+                path_or_hf_repo=_get_bundled_model_path(self.model),
                 language=self.language,
                 fp16=True,
                 condition_on_previous_text=False,
@@ -642,6 +657,7 @@ def main():
     args = parser.parse_args()
 
     app = NSApplication.sharedApplication()
+    app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
     delegate = AppDelegate.alloc().init()
     delegate._args = args
     app.setDelegate_(delegate)

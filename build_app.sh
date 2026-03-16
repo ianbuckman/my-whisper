@@ -41,8 +41,6 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
-    <key>LSUIElement</key>
-    <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>My Whisper 需要访问麦克风来录制语音并转写为文字。</string>
     <key>NSHighResolutionCapable</key>
@@ -51,19 +49,26 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# ── 启动脚本 ────────────────────────────────────────────────────────────────
-cat > "$APP_DIR/Contents/MacOS/launcher" << EOF
-#!/bin/bash
-PROJECT_DIR="$PROJECT_DIR"
-source "\$PROJECT_DIR/venv/bin/activate"
-exec python "\$PROJECT_DIR/main.py" "\$@"
-EOF
+# ── 原生启动器（现场编译）────────────────────────────────────────────────────
+echo "编译 launcher..."
+clang -framework Cocoa -Wall \
+      -o "$APP_DIR/Contents/MacOS/launcher" \
+      "$PROJECT_DIR/launcher.m"
 chmod +x "$APP_DIR/Contents/MacOS/launcher"
+
+# ── 复制脚本和 HTML ──────────────────────────────────────────────────────────
+cp "$PROJECT_DIR/main.py"  "$APP_DIR/Contents/Resources/main.py"
+cp "$PROJECT_DIR/ui.html"  "$APP_DIR/Contents/Resources/ui.html"
+
+# ── 复制 venv（-L 解引用符号链接，避免 bundle 内悬空链接）──────────────────
+echo "复制 venv（请稍候）..."
+cp -rL "$PROJECT_DIR/venv" "$APP_DIR/Contents/Resources/venv"
 
 # ── 生成应用图标 ─────────────────────────────────────────────────────────────
 echo "生成应用图标..."
 ICNS_PATH="$APP_DIR/Contents/Resources/AppIcon.icns"
-"$VENV_PYTHON" - "$ICNS_PATH" << 'ICON_SCRIPT'
+BUNDLE_PYTHON="$APP_DIR/Contents/Resources/venv/bin/python"
+"$BUNDLE_PYTHON" - "$ICNS_PATH" << 'ICON_SCRIPT'
 import subprocess, os, sys, tempfile, shutil
 import objc
 from AppKit import (
