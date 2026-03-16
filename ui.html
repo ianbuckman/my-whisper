@@ -374,6 +374,12 @@ function appendText(text) {
   if (empty) empty.style.display = 'none';
   hasContent = true;
 
+  // 如果正在编辑某个 segment，先取消焦点，确保新文本可见
+  const active = document.activeElement;
+  if (active && active.classList.contains('segment-text')) {
+    active.blur();
+  }
+
   const el = document.getElementById('transcript');
   const seg = document.createElement('div');
   seg.className = 'segment';
