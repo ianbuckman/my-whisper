@@ -12,6 +12,7 @@ import logging
 import threading
 import queue
 import argparse
+import time
 
 # 文件日志（写到 ~/Library/Logs/）
 _LOG_DIR = os.path.join(os.path.expanduser("~"), "Library", "Logs")
@@ -91,6 +92,7 @@ SILENCE_DURATION = 0.8
 MAX_SEGMENT_SECS = 15
 MIN_SEGMENT_SECS = 0.5
 NO_SPEECH_PROB_THRESHOLD = 0.6
+NO_TRANSCRIPT_TIMEOUT = 15  # 秒，无新转录则自动停止录音
 
 DEFAULT_MODEL = "mlx-community/whisper-large-v3-turbo"
 DEFAULT_LANGUAGE = "zh"
@@ -438,6 +440,7 @@ class AppDelegate(NSObject):
         if not self.model_loaded:
             return
         self.is_recording = True
+        self._last_transcript_time = time.time()
         self._eval_js("setRecording(true)")
         self._eval_js("updateStatus('录音中...')")
         self.window.setTitle_("My Whisper — 录音中...")
@@ -485,6 +488,11 @@ class AppDelegate(NSObject):
         if sound:
             sound.play()
 
+    def stopRecordingFromTimeout(self):
+        if self.is_recording:
+            self._eval_js("updateStatus('无新转录，自动停止')")
+            self._stop_recording()
+
     def _audio_callback(self, indata, frames, time, status):
         self.audio_queue.put(indata.copy().flatten())
 
@@ -499,6 +507,12 @@ class AppDelegate(NSObject):
         min_chunks = int(MIN_SEGMENT_SECS / BLOCK_DURATION)
 
         while self.is_recording:
+            if time.time() - self._last_transcript_time >= NO_TRANSCRIPT_TIMEOUT:
+                log.info("无新转录超时 %ds，自动停止录音", NO_TRANSCRIPT_TIMEOUT)
+                self.performSelectorOnMainThread_withObject_waitUntilDone_(
+                    "stopRecordingFromTimeout", None, False
+                )
+                break
             try:
                 chunk = self.audio_queue.get(timeout=0.15)
             except queue.Empty:
@@ -554,6 +568,7 @@ class AppDelegate(NSObject):
 
         text = "".join(valid_texts).strip()
         if text and not self._is_hallucination(text):
+            self._last_transcript_time = time.time()
             self.performSelectorOnMainThread_withObject_waitUntilDone_(
                 "appendText:", text, False
             )
