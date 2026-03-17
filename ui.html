@@ -122,6 +122,31 @@ body {
 
 .toolbar select:hover { background-color: var(--btn-hover); }
 
+.shortcut-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  font: 12px/1.4 -apple-system, "SF Pro Text", monospace;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.shortcut-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+
+.shortcut-btn.capturing {
+  border-color: var(--red);
+  color: var(--red);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
 .status-text {
   margin-left: auto;
   font-size: 12px;
@@ -307,12 +332,15 @@ body {
   </button>
   <select id="modelSelect" onchange="onModelChange(this.value)"></select>
   <select id="langSelect" onchange="onLangChange(this.value)"></select>
+  <button class="shortcut-btn" id="shortcutBtn" onclick="startShortcutCapture()" title="点击修改快捷键">
+    <span id="shortcutBtnLabel">⌘⇧Space</span>
+  </button>
   <span class="status-text" id="statusText">加载中...</span>
 </div>
 
 <div class="transcript" id="transcript">
   <div class="empty-state" id="emptyState">
-    <span>按 <span class="shortcut">⌘⇧Space</span> 或点击录音按钮开始</span>
+    <span>按 <span class="shortcut" id="shortcutDisplay">⌘⇧Space</span> 或点击录音按钮开始</span>
   </div>
   <div class="cursor-line" id="cursorLine">
     <span class="cursor"></span>
@@ -464,6 +492,80 @@ function initLanguages(langs, currentLang) {
     if (l[0] === currentLang) opt.selected = true;
     sel.appendChild(opt);
   });
+}
+
+// ── Shortcut capture ──
+let capturingShortcut = false;
+
+const CODE_TO_MAC_KEYCODE = {
+  KeyA:0,KeyS:1,KeyD:2,KeyF:3,KeyH:4,KeyG:5,KeyZ:6,KeyX:7,KeyC:8,KeyV:9,
+  KeyB:11,KeyQ:12,KeyW:13,KeyE:14,KeyR:15,KeyY:16,KeyT:17,KeyU:32,KeyI:34,
+  KeyP:35,KeyL:37,KeyJ:38,KeyK:40,KeyN:45,KeyM:46,KeyO:31,
+  Space:49,
+  Digit1:18,Digit2:19,Digit3:20,Digit4:21,Digit5:23,Digit6:22,
+  Digit7:26,Digit8:28,Digit9:25,Digit0:29,
+  Minus:27,Equal:24,BracketLeft:33,BracketRight:30,
+  Semicolon:41,Quote:39,Comma:43,Period:47,Slash:44,Backslash:42,
+  Backquote:50,Tab:48,Enter:36,Escape:53,
+  ArrowUp:126,ArrowDown:125,ArrowLeft:123,ArrowRight:124,
+  F1:122,F2:120,F3:99,F4:118,F5:96,F6:97,F7:98,F8:100,
+  F9:101,F10:109,F11:103,F12:111,
+};
+
+function startShortcutCapture() {
+  capturingShortcut = true;
+  document.getElementById('shortcutBtnLabel').textContent = '按下新快捷键...';
+  document.getElementById('shortcutBtn').classList.add('capturing');
+}
+
+function cancelShortcutCapture() {
+  capturingShortcut = false;
+  document.getElementById('shortcutBtn').classList.remove('capturing');
+  // 恢复当前显示
+  const cur = document.getElementById('shortcutDisplay').textContent;
+  document.getElementById('shortcutBtnLabel').textContent = cur;
+}
+
+document.addEventListener('keydown', function(e) {
+  if (!capturingShortcut) return;
+
+  // Escape 取消
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelShortcutCapture();
+    return;
+  }
+
+  // 忽略单独修饰键
+  if (['Shift','Control','Alt','Meta'].includes(e.key)) return;
+
+  // 至少需要一个修饰键（Cmd/Ctrl/Option），Shift 单独不算
+  if (!e.metaKey && !e.ctrlKey && !e.altKey) return;
+
+  e.preventDefault();
+  capturingShortcut = false;
+  document.getElementById('shortcutBtn').classList.remove('capturing');
+
+  const macKeyCode = CODE_TO_MAC_KEYCODE[e.code];
+  if (macKeyCode === undefined) {
+    showToast('不支持此按键');
+    cancelShortcutCapture();
+    return;
+  }
+
+  let modifiers = 0;
+  if (e.metaKey)   modifiers |= 0x0100;  // cmdKey
+  if (e.shiftKey)  modifiers |= 0x0200;  // shiftKey
+  if (e.altKey)    modifiers |= 0x0800;  // optionKey
+  if (e.ctrlKey)   modifiers |= 0x1000;  // controlKey
+
+  send({ action: 'changeShortcut', keyCode: macKeyCode, modifiers: modifiers });
+});
+
+function updateShortcutDisplay(text) {
+  document.getElementById('shortcutDisplay').textContent = text;
+  document.getElementById('shortcutBtnLabel').textContent = text;
+  document.getElementById('shortcutBtn').classList.remove('capturing');
 }
 
 // 单击进入编辑模式；默认 false 确保跨行文字可正常选取
