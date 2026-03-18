@@ -61,6 +61,8 @@ cp "$PROJECT_DIR/main.py"         "$APP_DIR/Contents/Resources/main.py"
 cp "$PROJECT_DIR/config.py"       "$APP_DIR/Contents/Resources/config.py"
 cp "$PROJECT_DIR/app_delegate.py" "$APP_DIR/Contents/Resources/app_delegate.py"
 cp "$PROJECT_DIR/transcriber.py"  "$APP_DIR/Contents/Resources/transcriber.py"
+cp "$PROJECT_DIR/hotkey.py"       "$APP_DIR/Contents/Resources/hotkey.py"
+cp "$PROJECT_DIR/settings.py"     "$APP_DIR/Contents/Resources/settings.py"
 cp "$PROJECT_DIR/ui.html"         "$APP_DIR/Contents/Resources/ui.html"
 
 # ── 复制 venv（-L 解引用符号链接，避免 bundle 内悬空链接）──────────────────
