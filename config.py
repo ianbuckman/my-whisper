@@ -17,7 +17,7 @@ SILENCE_DURATION = 0.8
 MAX_SEGMENT_SECS = 15
 MIN_SEGMENT_SECS = 0.5
 NO_SPEECH_PROB_THRESHOLD = 0.6
-NO_TRANSCRIPT_TIMEOUT = 15  # 秒，无新转录则自动停止录音
+NO_TRANSCRIPT_TIMEOUT = 45  # 秒，无新转录则自动停止录音
 
 # ─── 模型与语言 ───────────────────────────────────────────────────────────────
 
