@@ -61,7 +61,10 @@ HALLUCINATION_MARKERS = [
 
 
 def get_resource_path(filename):
-    """获取资源文件路径（兼容 PyInstaller 打包和开发环境）"""
+    """获取资源文件路径（兼容 py2app / PyInstaller / 开发环境）"""
+    res = os.environ.get("RESOURCEPATH")
+    if res:
+        return os.path.join(res, filename)
     if getattr(sys, '_MEIPASS', None):
         return os.path.join(sys._MEIPASS, filename)
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
