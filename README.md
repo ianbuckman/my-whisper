@@ -69,28 +69,32 @@ python main.py
 
 直接运行 Python 脚本，Dock 会显示 Python 图标（正常行为）。首次运行自动下载模型。
 
-### py2app 构建（推荐分发）
+### 构建 DMG 分发包（推荐）
 
 ```bash
+# 1. 清理旧构建
+rm -rf build dist
+
+# 2. py2app 构建
 venv/bin/python setup.py py2app
-```
 
-输出 `dist/My Whisper.app`。构建后需手动复制 mlx（namespace package，py2app 无法自动扫描）：
-
-```bash
+# 3. 复制 mlx（namespace package，py2app 无法自动扫描）
 cp -r venv/lib/python3.14/site-packages/mlx \
       dist/My\ Whisper.app/Contents/Resources/lib/python3.14/mlx
+
+# 4. 内嵌默认模型（用户开箱即用）
+MODEL_SNAP=$(ls -d ~/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-turbo/snapshots/*/ | head -1)
+mkdir -p "dist/My Whisper.app/Contents/Resources/models/whisper-large-v3-turbo"
+cp -rL "$MODEL_SNAP"/* "dist/My Whisper.app/Contents/Resources/models/whisper-large-v3-turbo/"
+
+# 5. 打包 DMG
+hdiutil create -volname "My Whisper" \
+  -srcfolder "dist/My Whisper.app" \
+  -ov -format UDZO My.Whisper.dmg
 ```
 
-此方式正确设置了 `LSUIElement`，App 仅在菜单栏显示图标，不出现在 Dock 中。
+产物 `My.Whisper.dmg`（约 1.6G，含模型）。`LSUIElement` 已设置，App 仅在菜单栏显示图标，不出现在 Dock 中。
 
-### build_app.sh（轻量构建）
-
-```bash
-./build_app.sh
-```
-
-编译 Objective-C launcher + 复制 venv 到 `.app` bundle，产物在项目根目录 `My Whisper.app`。构建速度快，适合本地快速测试。自动内嵌已下载的模型。
 
 ## 日志
 
